@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2004, 2008, 2011 Apple Inc. All rights reserved.
+ * Copyright (c) 2003-2013 Apple Inc. All rights reserved.
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
@@ -44,55 +44,68 @@
  * MkLinux
  */
 
-/* Machine-dependent definitions for pthread internals. */
-
-#ifndef _POSIX_PTHREAD_MACHDEP_H
-#define _POSIX_PTHREAD_MACHDEP_H
+#ifndef __PTHREAD_TSD_H__
+#define __PTHREAD_TSD_H__
 
 #ifndef __ASSEMBLER__
 
 #include <System/machine/cpu_capabilities.h>
-#ifdef __arm__
-#include <arm/arch.h>
-#endif
+#include <sys/cdefs.h>
 #include <TargetConditionals.h>
-#include <stdint.h>
+#include <Availability.h>
+#include <os/tsd.h>
+#include <pthread/spinlock_private.h>
+
+#ifndef __TSD_MACH_THREAD_SELF
+#define __TSD_MACH_THREAD_SELF 3
+#endif
+
+#ifndef __TSD_THREAD_QOS_CLASS
+#define __TSD_THREAD_QOS_CLASS 4
+#endif
+
+/* Constant TSD slots for inline pthread_getspecific() usage. */
+
+/* Keys 0 - 9 are for Libsyscall/libplatform usage */
+#define _PTHREAD_TSD_SLOT_PTHREAD_SELF __TSD_THREAD_SELF
+#define _PTHREAD_TSD_SLOT_ERRNO __TSD_ERRNO
+#define _PTHREAD_TSD_SLOT_MIG_REPLY __TSD_MIG_REPLY
+#define _PTHREAD_TSD_SLOT_MACH_THREAD_SELF __TSD_MACH_THREAD_SELF
+#define _PTHREAD_TSD_SLOT_PTHREAD_QOS_CLASS	__TSD_THREAD_QOS_CLASS
+//#define _PTHREAD_TSD_SLOT_SEMAPHORE_CACHE__TSD_SEMAPHORE_CACHE
 
 /*
-** Define macros for inline pthread_getspecific() usage.
-** We reserve a number of slots for Apple internal use.
-** This number can grow dynamically, no need to fix it.
-*/
+ * Windows 64-bit ABI bakes %gs relative accesses into its code in the same
+ * range as our TSD keys.  To allow some limited interoperability for code
+ * targeting that ABI, we leave slots 6 and 11 unused.
+ */
+//#define _PTHREAD_TSD_SLOT_RESERVED_WIN64 6
 
-/* This header contains pre defined thread specific keys */
-/* 0 is used for pthread_self */
-#define _PTHREAD_TSD_SLOT_PTHREAD_SELF		0
-/* Keys 1- 9 for use by dyld, directly or indirectly */
-#define _PTHREAD_TSD_SLOT_DYLD_1		1
-#define _PTHREAD_TSD_SLOT_DYLD_2		2
-#define _PTHREAD_TSD_SLOT_DYLD_3		3
-#define _PTHREAD_TSD_RESERVED_SLOT_COUNT	4
-/* To mirror the usage by dyld for Unwind_SjLj */
-#define _PTHREAD_TSD_SLOT_DYLD_8		8
+#define _PTHREAD_TSD_RESERVED_SLOT_COUNT _PTHREAD_TSD_RESERVED_SLOT_COUNT
 
-/* Keys 10 - 29 are for Libc/Libsystem internal ussage */
+/* Keys 10 - 29 are for Libc/Libsystem internal usage */
 /* used as __pthread_tsd_first + Num  */
 #define __PTK_LIBC_LOCALE_KEY		10
-#define __PTK_LIBC_TTYNAME_KEY		11
+//#define __PTK_LIBC_RESERVED_WIN64	11
 #define __PTK_LIBC_LOCALTIME_KEY	12
 #define __PTK_LIBC_GMTIME_KEY		13
 #define __PTK_LIBC_GDTOA_BIGINT_KEY	14
 #define __PTK_LIBC_PARSEFLOAT_KEY	15
+#define __PTK_LIBC_TTYNAME_KEY		16
 /* for usage by dyld */
 #define __PTK_LIBC_DYLD_Unwind_SjLj_Key	18
 
-/* Keys 20-25 for libdispactch usage */
+/* Keys 20-29 for libdispatch usage */
 #define __PTK_LIBDISPATCH_KEY0		20
 #define __PTK_LIBDISPATCH_KEY1		21
 #define __PTK_LIBDISPATCH_KEY2		22
 #define __PTK_LIBDISPATCH_KEY3		23
 #define __PTK_LIBDISPATCH_KEY4		24
 #define __PTK_LIBDISPATCH_KEY5		25
+#define __PTK_LIBDISPATCH_KEY6		26
+#define __PTK_LIBDISPATCH_KEY7		27
+#define __PTK_LIBDISPATCH_KEY8		28
+#define __PTK_LIBDISPATCH_KEY9		29
 
 /* Keys 30-255 for Non Libsystem usage */
 
@@ -158,17 +171,17 @@
 #define __PTK_FRAMEWORK_QUARTZCORE_KEY9		79
 
 
-/* Keys 80-89 for Garbage Collection */
-#define __PTK_FRAMEWORK_OLDGC_KEY0		80
-#define __PTK_FRAMEWORK_OLDGC_KEY1		81
-#define __PTK_FRAMEWORK_OLDGC_KEY2		82
-#define __PTK_FRAMEWORK_OLDGC_KEY3		83
-#define __PTK_FRAMEWORK_OLDGC_KEY4		84
-#define __PTK_FRAMEWORK_OLDGC_KEY5		85
-#define __PTK_FRAMEWORK_OLDGC_KEY6		86
-#define __PTK_FRAMEWORK_OLDGC_KEY7		87
-#define __PTK_FRAMEWORK_OLDGC_KEY8		88
-#define __PTK_FRAMEWORK_OLDGC_KEY9		89
+/* Keys 80-89 for CoreData */
+#define __PTK_FRAMEWORK_COREDATA_KEY0		80
+#define __PTK_FRAMEWORK_COREDATA_KEY1		81
+#define __PTK_FRAMEWORK_COREDATA_KEY2		82
+#define __PTK_FRAMEWORK_COREDATA_KEY3		83
+#define __PTK_FRAMEWORK_COREDATA_KEY4		84
+#define __PTK_FRAMEWORK_COREDATA_KEY5		85
+#define __PTK_FRAMEWORK_COREDATA_KEY6		86
+#define __PTK_FRAMEWORK_COREDATA_KEY7		87
+#define __PTK_FRAMEWORK_COREDATA_KEY8		88
+#define __PTK_FRAMEWORK_COREDATA_KEY9		89
 
 /* Keys 90-94 for JavaScriptCore Collection */
 #define __PTK_FRAMEWORK_JAVASCRIPTCORE_KEY0		90
@@ -179,124 +192,80 @@
 /* Keys 95 for CoreText */
 #define __PTK_FRAMEWORK_CORETEXT_KEY0			95
 
-/* Keys 110-119 for Garbage Collection */
-#define __PTK_FRAMEWORK_GC_KEY0		110
-#define __PTK_FRAMEWORK_GC_KEY1		111
-#define __PTK_FRAMEWORK_GC_KEY2		112
-#define __PTK_FRAMEWORK_GC_KEY3		113
-#define __PTK_FRAMEWORK_GC_KEY4		114
-#define __PTK_FRAMEWORK_GC_KEY5		115
-#define __PTK_FRAMEWORK_GC_KEY6		116
-#define __PTK_FRAMEWORK_GC_KEY7		117
-#define __PTK_FRAMEWORK_GC_KEY8		118
-#define __PTK_FRAMEWORK_GC_KEY9		119
+/* Keys 210 - 229 are for libSystem usage within the iOS Simulator */
+/* They are offset from their corresponding libSystem keys by 200 */
+#define __PTK_LIBC_SIM_LOCALE_KEY	210
+#define __PTK_LIBC_SIM_TTYNAME_KEY	211
+#define __PTK_LIBC_SIM_LOCALTIME_KEY	212
+#define __PTK_LIBC_SIM_GMTIME_KEY	213
+#define __PTK_LIBC_SIM_GDTOA_BIGINT_KEY	214
+#define __PTK_LIBC_SIM_PARSEFLOAT_KEY	215
 
-/*
-** Define macros for inline pthread_getspecific() usage.
-** We reserve a number of slots for Apple internal use.
-** This number can grow dynamically, no need to fix it.
-*/
-
-
-#if defined(__cplusplus)
-extern "C" {
-#endif
+__BEGIN_DECLS
 
 extern void *pthread_getspecific(unsigned long);
 extern int pthread_setspecific(unsigned long, const void *);
 /* setup destructor function for static key as it is not created with pthread_key_create() */
-int       pthread_key_init_np(int, void (*)(void *));
+extern int pthread_key_init_np(int, void (*)(void *));
 
-#if defined(__cplusplus)
-}
-#endif
+__OSX_AVAILABLE(10.12)
+__IOS_AVAILABLE(10.0)
+__TVOS_AVAILABLE(10.0)
+__WATCHOS_AVAILABLE(3.0)
+extern int _pthread_setspecific_static(unsigned long, void *);
 
-//typedef int pthread_lock_t;
+#if PTHREAD_LAYOUT_SPI
 
-//__inline__ static int
-//_pthread_has_direct_tsd(void)
-//{
-//#if TARGET_IPHONE_SIMULATOR
-//    /* Simulator will use the host implementation, so bypass the macro that is in the target code */
-//    return 0;
-//#elif defined(__ppc__)
-//    int *caps = (int *)_COMM_PAGE_CPU_CAPABILITIES;
-//    if (*caps & kFastThreadLocalStorage) {
-//        return 1;
-//    } else {
-//        return 0;
-//    }
-//#else
-//    return 1;
-//#endif
-//}
+/* SPI intended for CoreSymbolication only */
 
-#if TARGET_IPHONE_SIMULATOR || defined(__ppc__) || defined(__ppc64__) || \
-	(defined(__arm__) && !defined(_ARM_ARCH_7) && defined(_ARM_ARCH_6) && defined(__thumb__))
+__OSX_AVAILABLE_STARTING(__MAC_10_10,__IPHONE_8_0)
+extern const struct pthread_layout_offsets_s {
+	// always add new fields at the end
+	const uint16_t plo_version;
+	// either of the next two fields may be 0; use whichever is set
+	// bytes from pthread_t to base of tsd
+	const uint16_t plo_pthread_tsd_base_offset;
+	// bytes from pthread_t to a pointer to base of tsd
+	const uint16_t plo_pthread_tsd_base_address_offset;
+	const uint16_t plo_pthread_tsd_entry_size;
+} pthread_layout_offsets;
 
-#define _pthread_getspecific_direct(key) pthread_getspecific((key))
-#define _pthread_setspecific_direct(key, val) pthread_setspecific((key), (val))
+#endif // PTHREAD_LAYOUT_SPI
 
+__header_always_inline int
+_pthread_has_direct_tsd(void)
+{
+#if TARGET_IPHONE_SIMULATOR
+	return 0;
 #else
-
-/* To be used with static constant keys only */
-//__inline__ static void *
-//_pthread_getspecific_direct(unsigned long slot)
-//{
-//    void *ret;
-//#if defined(__i386__) || defined(__x86_64__)
-//    __asm__("mov %%gs:%1, %0" : "=r" (ret) : "m" (*(void **)(slot * sizeof(void *))));
-//#elif (defined(__arm__) && (defined(_ARM_ARCH_6) || defined(_ARM_ARCH_5)))
-//    void **__pthread_tsd;
-//#if defined(__arm__) && defined(_ARM_ARCH_6)
-//    uintptr_t __pthread_tpid;
-//    __asm__("mrc p15, 0, %0, c13, c0, 3" : "=r" (__pthread_tpid));
-//    __pthread_tsd = (void**)(__pthread_tpid & ~0x3ul);
-//#elif defined(__arm__) && defined(_ARM_ARCH_5)
-//    register uintptr_t __pthread_tpid asm ("r9");
-//    __pthread_tsd = (void**)__pthread_tpid;
-//#endif
-//    ret = __pthread_tsd[slot];
-//#else
-//#error no _pthread_getspecific_direct implementation for this arch
-//#endif
-//    return ret;
-//}
-
-/* To be used with static constant keys only */
-//__inline__ static int
-//_pthread_setspecific_direct(unsigned long slot, void * val)
-//{
-//#if defined(__i386__)
-//#if defined(__PIC__)
-//    __asm__("movl %1,%%gs:%0" : "=m" (*(void **)(slot * sizeof(void *))) : "rn" (val));
-//#else
-//    __asm__("movl %1,%%gs:%0" : "=m" (*(void **)(slot * sizeof(void *))) : "ri" (val));
-//#endif
-//#elif defined(__x86_64__)
-//    /* PIC is free and cannot be disabled, even with: gcc -mdynamic-no-pic ... */
-//    __asm__("movq %1,%%gs:%0" : "=m" (*(void **)(slot * sizeof(void *))) : "rn" (val));
-//#elif (defined(__arm__) && (defined(_ARM_ARCH_6) || defined(_ARM_ARCH_5)))
-//    void **__pthread_tsd;
-//#if defined(__arm__) && defined(_ARM_ARCH_6)
-//    uintptr_t __pthread_tpid;
-//    __asm__("mrc p15, 0, %0, c13, c0, 3" : "=r" (__pthread_tpid));
-//    __pthread_tsd = (void**)(__pthread_tpid & ~0x3ul);
-//#elif defined(__arm__) && defined(_ARM_ARCH_5)
-//    register uintptr_t __pthread_tpid asm ("r9");
-//    __pthread_tsd = (void**)__pthread_tpid;
-//#endif
-//    __pthread_tsd[slot] = val;
-//#else
-//#error no _pthread_setspecific_direct implementation for this arch
-//#endif
-//    return 0;
-//}
-
+	return 1;
 #endif
+}
 
-#define LOCK_INIT(l)	((l) = 0)
-#define LOCK_INITIALIZER 0
+/* To be used with static constant keys only */
+__header_always_inline void *
+_pthread_getspecific_direct(unsigned long slot)
+{
+#if TARGET_IPHONE_SIMULATOR
+	return pthread_getspecific(slot);
+#else
+	return _os_tsd_get_direct(slot);
+#endif
+}
+
+/* To be used with static constant keys only, assumes destructor is
+ * already setup (with pthread_key_init_np) */
+__header_always_inline int
+_pthread_setspecific_direct(unsigned long slot, void * val)
+{
+#if TARGET_IPHONE_SIMULATOR
+	return _pthread_setspecific_static(slot, val);
+#else
+	return _os_tsd_set_direct(slot, val);
+#endif
+}
+
+__END_DECLS
 
 #endif /* ! __ASSEMBLER__ */
-#endif /* _POSIX_PTHREAD_MACHDEP_H */
+#endif /* __PTHREAD_TSD_H__ */

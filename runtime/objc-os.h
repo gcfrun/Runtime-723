@@ -102,6 +102,7 @@ class nocopy_t {
 #   include <mach-o/dyld_priv.h>
 #   include <malloc/malloc.h>
 //#   include <os/lock_private.h>
+#   include <os/lock.h>
 #   include <libkern/OSAtomic.h>
 #   include <libkern/OSCacheControl.h>
 #   include <System/pthread_machdep.h>
@@ -689,7 +690,7 @@ static bool is_valid_direct_key(tls_key_t k) {
                );
 }
 #endif
-
+#include <pthread/tsd_private.h>
 static inline void *tls_get_direct(tls_key_t k) 
 { 
     assert(is_valid_direct_key(k));
@@ -721,12 +722,13 @@ static inline pthread_t pthread_self_direct()
         _pthread_getspecific_direct(_PTHREAD_TSD_SLOT_PTHREAD_SELF);
 }
 
+# include <pthread/tsd_private.h>
 static inline mach_port_t mach_thread_self_direct() 
 {
     return (mach_port_t)(uintptr_t)
         _pthread_getspecific_direct(_PTHREAD_TSD_SLOT_MACH_THREAD_SELF);
 }
-
+#include <pthread/qos_private.h>
 #if SUPPORT_QOS_HACK
 static inline pthread_priority_t pthread_self_priority_direct() 
 {
@@ -754,11 +756,28 @@ using monitor_t = monitor_tt<LOCKDEBUG>;
 using rwlock_t = rwlock_tt<LOCKDEBUG>;
 using recursive_mutex_t = recursive_mutex_tt<LOCKDEBUG>;
 
+//extern "C" void os_unfair_lock_assert_owner(os_unfair_lock *);
+//extern "C" void os_unfair_lock_assert_not_owner(os_unfair_lock *);
+extern "C" void os_unfair_lock_unlock(os_unfair_lock *);
+extern "C" void os_unfair_lock_lock_with_options(os_unfair_lock *, uint32_t options);
+
 // Use fork_unsafe_lock to get a lock that isn't 
 // acquired and released around fork().
 // All fork-safe locks are checked in debug builds.
 struct fork_unsafe_lock_t { };
 extern const fork_unsafe_lock_t fork_unsafe_lock;
+
+inline void os_unfair_lock_lock_with_options_inline(os_unfair_lock *unfair_lock, uint32_t options) {
+    os_unfair_lock_lock_with_options(unfair_lock, options);
+}
+
+inline void os_unfair_lock_unlock_inline(os_unfair_lock *unfair_lock) {
+    os_unfair_lock_unlock(unfair_lock);
+}
+
+#ifndef OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION
+#define OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION 0x10000
+#endif
 
 #include "objc-lockdebug.h"
 
