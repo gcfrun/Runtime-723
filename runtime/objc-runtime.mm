@@ -118,6 +118,7 @@ Class objc_getClass(const char *aClassName)
     if (!aClassName) return Nil;
 
     // NO unconnected, YES class handler
+    //获取类
     return look_up_class(aClassName, NO, YES);
 }
 

@@ -65,6 +65,7 @@ void add_class_to_loadable_list(Class cls)
 
     loadMethodLock.assertLocked();
 
+    //获取类的load方法的imp
     method = cls->getLoadMethod();
     if (!method) return;  // Don't bother if cls has no +load method
     
@@ -72,7 +73,7 @@ void add_class_to_loadable_list(Class cls)
         _objc_inform("LOAD: class '%s' scheduled for +load", 
                      cls->nameForLogging());
     }
-    
+    //若已使用大小等于数组大小，则给数组扩容
     if (loadable_classes_used == loadable_classes_allocated) {
         loadable_classes_allocated = loadable_classes_allocated*2 + 16;
         loadable_classes = (struct loadable_class *)
@@ -81,8 +82,10 @@ void add_class_to_loadable_list(Class cls)
                               sizeof(struct loadable_class));
     }
     
+    //给数组添加class和其load方法的imp
     loadable_classes[loadable_classes_used].cls = cls;
     loadable_classes[loadable_classes_used].method = method;
+    //已使用大小加一
     loadable_classes_used++;
 }
 
@@ -98,10 +101,11 @@ void add_category_to_loadable_list(Category cat)
     IMP method;
 
     loadMethodLock.assertLocked();
-
+    //--获取category里的load方法的imp
     method = _category_getLoadMethod(cat);
 
     // Don't bother if cat has no +load method
+    //如果没有实现load方法，则返回
     if (!method) return;
 
     if (PrintLoading) {
@@ -109,6 +113,7 @@ void add_category_to_loadable_list(Category cat)
                      _category_getClassName(cat), _category_getName(cat));
     }
     
+    //若已使用大小等于数组大小，则对数组扩容
     if (loadable_categories_used == loadable_categories_allocated) {
         loadable_categories_allocated = loadable_categories_allocated*2 + 16;
         loadable_categories = (struct loadable_category *)
@@ -116,7 +121,7 @@ void add_category_to_loadable_list(Category cat)
                               loadable_categories_allocated *
                               sizeof(struct loadable_category));
     }
-
+    //设置添加的分类和其load方法的imp
     loadable_categories[loadable_categories_used].cat = cat;
     loadable_categories[loadable_categories_used].method = method;
     loadable_categories_used++;
@@ -186,6 +191,7 @@ static void call_class_loads(void)
     int i;
     
     // Detach current loadable list.
+    //获取当前loadable_classes列表
     struct loadable_class *classes = loadable_classes;
     int used = loadable_classes_used;
     loadable_classes = nil;
@@ -193,14 +199,17 @@ static void call_class_loads(void)
     loadable_classes_used = 0;
     
     // Call all +loads for the detached list.
+    //遍历loadable_classes列表，依次执行load方法，这里只遍历已添加load方法的列表元素used
     for (i = 0; i < used; i++) {
         Class cls = classes[i].cls;
         load_method_t load_method = (load_method_t)classes[i].method;
+        //若果cls为空，则不执行其load方法
         if (!cls) continue; 
 
         if (PrintLoading) {
             _objc_inform("LOAD: +[%s load]\n", cls->nameForLogging());
         }
+        //通过函数地址，直接执行load方法
         (*load_method)(cls, SEL_load);
     }
     
@@ -227,6 +236,7 @@ static bool call_category_loads(void)
     bool new_categories_added = NO;
     
     // Detach current loadable list.
+    //获取当前loadable_categories列表
     struct loadable_category *cats = loadable_categories;
     int used = loadable_categories_used;
     int allocated = loadable_categories_allocated;
@@ -235,10 +245,12 @@ static bool call_category_loads(void)
     loadable_categories_used = 0;
 
     // Call all +loads for the detached list.
+    //遍历loadable_categories，依依执行load方法，这里只遍历已添加load方法的列表元素used
     for (i = 0; i < used; i++) {
         Category cat = cats[i].cat;
         load_method_t load_method = (load_method_t)cats[i].method;
         Class cls;
+        //若果分类为空，则不执行其load方法
         if (!cat) continue;
 
         cls = _category_getClass(cat);
@@ -248,12 +260,15 @@ static bool call_category_loads(void)
                              cls->nameForLogging(), 
                              _category_getName(cat));
             }
+            //通过函数地址，直接调用load方法
             (*load_method)(cls, SEL_load);
+            //把cat置为nil
             cats[i].cat = nil;
         }
     }
 
     // Compact detached list (order-preserving)
+    //删除cats中已执行load方法的Category
     shift = 0;
     for (i = 0; i < used; i++) {
         if (cats[i].cat) {
@@ -265,6 +280,7 @@ static bool call_category_loads(void)
     used -= shift;
 
     // Copy any new +load candidates from the new list to the detached list.
+    //把新的loadable_categories内容添加当前cats中
     new_categories_added = (loadable_categories_used > 0);
     for (i = 0; i < loadable_categories_used; i++) {
         if (used == allocated) {
@@ -277,15 +293,19 @@ static bool call_category_loads(void)
     }
 
     // Destroy the new list.
+    //把新的loadable_categories释放掉
     if (loadable_categories) free(loadable_categories);
 
     // Reattach the (now augmented) detached list. 
     // But if there's nothing left to load, destroy the list.
+    //若果当前cats中有内容，则把loadable_categories设置为cats
     if (used) {
         loadable_categories = cats;
         loadable_categories_used = used;
         loadable_categories_allocated = allocated;
     } else {
+    //否则把loadable_categories置之为nil，loadable_categories_used为0，loadable_categories_allocated为0
+        
         if (cats) free(cats);
         loadable_categories = nil;
         loadable_categories_used = 0;
@@ -349,11 +369,13 @@ void call_load_methods(void)
 
     do {
         // 1. Repeatedly call class +loads until there aren't any more
+        //---1.调用class的load方法
         while (loadable_classes_used > 0) {
             call_class_loads();
         }
 
         // 2. Call category +loads ONCE
+        //---2.调用Category的load方法
         more_categories = call_category_loads();
 
         // 3. Run more +loads if there are classes OR more untried categories

@@ -205,9 +205,9 @@ struct entsize_list_tt {
 
 
 struct method_t {
-    SEL name;
-    const char *types;
-    IMP imp;
+    SEL name;       //方法名
+    const char *types;      //方法类型
+    IMP imp;               //方法地址
 
     struct SortBySELAddress :
         public std::binary_function<const method_t&,
@@ -228,9 +228,9 @@ struct ivar_t {
     // Some code uses all 64 bits. class_addIvar() over-allocates the 
     // offset for their benefit.
 #endif
-    int32_t *offset;
-    const char *name;
-    const char *type;
+    int32_t *offset;            //地址中的偏移
+    const char *name;       //变量名
+    const char *type;           //变量类型
     // alignment is sometimes -1; use alignment() instead
     uint32_t alignment_raw;
     uint32_t size;
@@ -242,8 +242,8 @@ struct ivar_t {
 };
 
 struct property_t {
-    const char *name;
-    const char *attributes;
+    const char *name;       //属性名
+    const char *attributes;         //属性内容：strong、weak、编码等
 };
 
 // Two bits of entsize are used for fixup markers.
@@ -279,19 +279,19 @@ typedef uintptr_t protocol_ref_t;  // protocol_t *, but unremapped
 #define PROTOCOL_FIXED_UP_MASK (PROTOCOL_FIXED_UP_1 | PROTOCOL_FIXED_UP_2)
 
 struct protocol_t : objc_object {
-    const char *mangledName;
-    struct protocol_list_t *protocols;
-    method_list_t *instanceMethods;
-    method_list_t *classMethods;
-    method_list_t *optionalInstanceMethods;
-    method_list_t *optionalClassMethods;
-    property_list_t *instanceProperties;
+    const char *mangledName;            //协议名
+    struct protocol_list_t *protocols;      //协议列表
+    method_list_t *instanceMethods;         //实例方法
+    method_list_t *classMethods;            //类方法
+    method_list_t *optionalInstanceMethods;     //可选实例方法
+    method_list_t *optionalClassMethods;          //可选类方法
+    property_list_t *instanceProperties;            //实例属性
     uint32_t size;   // sizeof(protocol_t)
     uint32_t flags;
     // Fields below this point are not always present on disk.
     const char **_extendedMethodTypes;
     const char *_demangledName;
-    property_list_t *_classProperties;
+    property_list_t *_classProperties;              //类属性
 
     const char *demangledName();
 
@@ -460,6 +460,7 @@ struct locstamped_category_list_t {
 #define FAST_IS_SWIFT         (1UL<<0)
 // class or superclass has default retain/release/autorelease/retainCount/
 //   _tryRetain/_isDeallocating/retainWeakReference/allowsWeakReference
+
 #define FAST_HAS_DEFAULT_RR   (1UL<<1)
 // data pointer
 #define FAST_DATA_MASK        0xfffffffcUL
@@ -476,13 +477,17 @@ struct locstamped_category_list_t {
 #define RW_HAS_DEFAULT_AWZ    (1<<16)
 
 // class is a Swift class
+//1.表示是否swift
 #define FAST_IS_SWIFT           (1UL<<0)
 // class or superclass has default retain/release/autorelease/retainCount/
 //   _tryRetain/_isDeallocating/retainWeakReference/allowsWeakReference
+//2.当前类或者父类是否有retain、release等方法
 #define FAST_HAS_DEFAULT_RR     (1UL<<1)
 // class's instances requires raw isa
+//3.类是否需要初始化isa
 #define FAST_REQUIRES_RAW_ISA   (1UL<<2)
 // data pointer
+//4.数据段指针   1111111111 1111111111 1111111111 1111111111 1111000
 #define FAST_DATA_MASK          0x00007ffffffffff8UL
 
 #else
@@ -691,33 +696,48 @@ class list_array_tt {
             return &list;
         }
     }
-
+    
+    //动态添加方法addedLists元素个数为1；添加分类方法addedLists元素个数可以有多个
     void attachLists(List* const * addedLists, uint32_t addedCount) {
         if (addedCount == 0) return;
 
         if (hasArray()) {
+            /*
+             *1.原方法列表有很多方法
+             */
             // many lists -> many lists
             uint32_t oldCount = array()->count;
             uint32_t newCount = oldCount + addedCount;
             setArray((array_t *)realloc(array(), array_t::byteSize(newCount)));
             array()->count = newCount;
+            //旧方法列表往后移动addedCount个位置
             memmove(array()->lists + addedCount, array()->lists, 
                     oldCount * sizeof(array()->lists[0]));
+            //新方法列表拷贝到array()->lists表头到addedCount-1处
             memcpy(array()->lists, addedLists, 
                    addedCount * sizeof(array()->lists[0]));
         }
         else if (!list  &&  addedCount == 1) {
+            /*
+             *2.原方法列表为空
+             */
             // 0 lists -> 1 list
+            //直接把新方法列表首地址赋给列表
             list = addedLists[0];
         } 
         else {
+            /*
+             *2.原方法列表只有一个方法
+             */
             // 1 list -> many lists
             List* oldList = list;
             uint32_t oldCount = oldList ? 1 : 0;
             uint32_t newCount = oldCount + addedCount;
             setArray((array_t *)malloc(array_t::byteSize(newCount)));
             array()->count = newCount;
+            //1个旧方法直接移动到列表lists的addedCount位置
             if (oldList) array()->lists[addedCount] = oldList;
+            //2.新方法列表拷贝到array()->lists表头到addedCount-1处
             memcpy(array()->lists, addedLists, 
                    addedCount * sizeof(array()->lists[0]));
         }
@@ -1123,6 +1143,7 @@ struct objc_class : objc_object {
     }
     bool canAllocFast() {
         assert(!isFuture());
+        //---
         return bits.canAllocFast();
     }
 
@@ -1268,11 +1289,13 @@ struct objc_class : objc_object {
     // May be unaligned depending on class's ivars.
     uint32_t unalignedInstanceSize() {
         assert(isRealized());
+        //---
         return data()->ro->instanceSize;
     }
 
     // Class's ivar size rounded up to a pointer-size boundary.
     uint32_t alignedInstanceSize() {
+        //---
         return word_align(unalignedInstanceSize());
     }
 

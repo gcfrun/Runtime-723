@@ -8,5 +8,6 @@
 #import <Foundation/Foundation.h>
 
 @interface Person : NSObject
-- (void)test2;
++ (void)test1;
+-  (void)test2;
 @end

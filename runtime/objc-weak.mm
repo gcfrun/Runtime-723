@@ -354,8 +354,10 @@ weak_unregister_no_lock(weak_table_t *weak_table, id referent_id,
     weak_entry_t *entry;
 
     if (!referent) return;
-
+    
+    //从weak_table表中根据获取referent获取entry
     if ((entry = weak_entry_for_referent(weak_table, referent))) {
+        //从entry中删除掉referrer
         remove_referrer(entry, referrer);
         bool empty = true;
         if (entry->out_of_line()  &&  entry->num_refs != 0) {
@@ -369,8 +371,9 @@ weak_unregister_no_lock(weak_table_t *weak_table, id referent_id,
                 }
             }
         }
-
+        
         if (empty) {
+            //若果该对象没有弱引用了，则从weak_table表中删除
             weak_entry_remove(weak_table, entry);
         }
     }
@@ -426,12 +429,17 @@ weak_register_no_lock(weak_table_t *weak_table, id referent_id,
 
     // now remember it and where it is being stored
     weak_entry_t *entry;
+    //从weak_table表中查询referent是否存在
     if ((entry = weak_entry_for_referent(weak_table, referent))) {
+        //把referrer添加到entry的弱引用数组中去
         append_referrer(entry, referrer);
     } 
     else {
+        //创建新的weak_entry_t
         weak_entry_t new_entry(referent, referrer);
+        //设置弱引用表的大小
         weak_grow_maybe(weak_table);
+        //把weak_entry_t添加到weak_table中
         weak_entry_insert(weak_table, &new_entry);
     }
 
@@ -462,7 +470,7 @@ void
 weak_clear_no_lock(weak_table_t *weak_table, id referent_id) 
 {
     objc_object *referent = (objc_object *)referent_id;
-
+    //从weak_table拿到对应的weak_entry_t
     weak_entry_t *entry = weak_entry_for_referent(weak_table, referent);
     if (entry == nil) {
         /// XXX shouldn't happen, but does with mismatched CF/objc
@@ -474,19 +482,30 @@ weak_clear_no_lock(weak_table_t *weak_table, id referent_id)
     weak_referrer_t *referrers;
     size_t count;
     
+    //数组大小超过4，则从 entry->referrers拿到对应referrers
     if (entry->out_of_line()) {
         referrers = entry->referrers;
         count = TABLE_SIZE(entry);
-    } 
+    }
+    //没有超过，则从 entry->inline_referrers拿到对应referrers
     else {
         referrers = entry->inline_referrers;
         count = WEAK_INLINE_COUNT;
     }
     
+    //遍历使得所有有关referent_id的所引用都置为nil
     for (size_t i = 0; i < count; ++i) {
+        /*
+         __weak object2 = object1
+         指针--->被弱引用的对象：object1
+         指针的指针--->指向弱引用对象的指针：object2
+         */
+        
         objc_object **referrer = referrers[i];
         if (referrer) {
+            //*object2 = object
             if (*referrer == referent) {
+                //置为nil
                 *referrer = nil;
             }
             else if (*referrer) {

@@ -450,6 +450,7 @@ static void object_cxxDestructFromClass(id obj, Class cls)
 
     // Call cls's dtor first, then superclasses's dtors.
 
+    //遍历释放superclass的实例变量
     for ( ; cls; cls = cls->superclass) {
         if (!cls->hasCxxDtor()) return; 
         dtor = (void(*)(id))
@@ -474,6 +475,7 @@ void object_cxxDestruct(id obj)
 {
     if (!obj) return;
     if (obj->isTaggedPointer()) return;
+    //---
     object_cxxDestructFromClass(obj, obj->ISA());
 }
 
@@ -695,7 +697,7 @@ void _class_resolveMethod(Class cls, SEL sel, id inst)
 Method class_getClassMethod(Class cls, SEL sel)
 {
     if (!cls  ||  !sel) return nil;
-
+    //cls->getMeta()比较特殊
     return class_getInstanceMethod(cls->getMeta(), sel);
 }
 

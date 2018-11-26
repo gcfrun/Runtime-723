@@ -149,16 +149,18 @@ static SEL __sel_registerName(const char *name, int lock, int copy)
     if (result) return result;
     
     if (lock) selLock.read();
+     //有namedSelectors表，直接查询方法名name
     if (namedSelectors) {
         result = (SEL)NXMapGet(namedSelectors, name);
     }
     if (lock) selLock.unlockRead();
+    //把查到的方法SEL返回
     if (result) return result;
 
     // No match. Insert.
 
     if (lock) selLock.write();
-
+    //没有namedSelectors表，创建表
     if (!namedSelectors) {
         namedSelectors = NXCreateMapTable(NXStrValueMapPrototype, 
                                           (unsigned)SelrefCount);
@@ -167,9 +169,12 @@ static SEL __sel_registerName(const char *name, int lock, int copy)
         // Rescan in case it was added while we dropped the lock
         result = (SEL)NXMapGet(namedSelectors, name);
     }
+    //没有查询到对应的方法SEL
     if (!result) {
+        //根据方法名name生成SEL
         result = sel_alloc(name, copy);
         // fixme choose a better container (hash not map for starters)
+        //并把方法名sel_getName(result)和对应方法result插入到表中去
         NXMapInsert(namedSelectors, sel_getName(result), result);
     }
 
@@ -183,6 +188,7 @@ SEL sel_registerName(const char *name) {
 }
 
 SEL sel_registerNameNoLock(const char *name, bool copy) {
+    //---
     return __sel_registerName(name, 0, copy);  // NO lock, maybe copy
 }
 

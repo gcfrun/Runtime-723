@@ -124,18 +124,22 @@ struct weak_table_t {
 };
 
 /// Adds an (object, weak pointer) pair to the weak table.
+//---添加弱引用---引用表weak_table、被引用对象referent、弱引用referent的指针referrer
 id weak_register_no_lock(weak_table_t *weak_table, id referent, 
                          id *referrer, bool crashIfDeallocating);
 
 /// Removes an (object, weak pointer) pair from the weak table.
+//---移除一个弱引用referrer
 void weak_unregister_no_lock(weak_table_t *weak_table, id referent, id *referrer);
 
 #if DEBUG
 /// Returns true if an object is weakly referenced somewhere.
+//指定对象referent是否存在弱引用
 bool weak_is_registered_no_lock(weak_table_t *weak_table, id referent);
 #endif
 
 /// Called on object destruction. Sets all remaining weak pointers to nil.
+//---清除指定对象referent的所有弱引用
 void weak_clear_no_lock(weak_table_t *weak_table, id referent);
 
 __END_DECLS

@@ -64,7 +64,7 @@ namespace {
 #   error bad config
 #endif
 
-
+//Class、uintptr_t、结构体公用一块内存空间，isa_t是一个Class、同时是一个64位地址bits、是一个64位结构体
 union isa_t 
 {
     isa_t() { }

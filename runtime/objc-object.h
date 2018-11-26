@@ -400,10 +400,12 @@ objc_object::clearDeallocating()
 {
     if (slowpath(!isa.nonpointer)) {
         // Slow path for raw pointer isa.
+        //32位系统，是指针
         sidetable_clearDeallocating();
     }
     else if (slowpath(isa.weakly_referenced  ||  isa.has_sidetable_rc)) {
         // Slow path for non-pointer isa with weak refs and/or side table data.
+        //---
         clearDeallocating_slow();
     }
 
@@ -416,6 +418,13 @@ objc_object::rootDealloc()
 {
     if (isTaggedPointer()) return;  // fixme necessary?
 
+    /*
+     *是否TaggedPointer，它并不是真正的指针
+     *是否有弱引用
+     *是否有关联
+     *是否有析构器
+     *是否引用计数过大
+     */
     if (fastpath(isa.nonpointer  &&  
                  !isa.weakly_referenced  &&  
                  !isa.has_assoc  &&  
@@ -423,9 +432,11 @@ objc_object::rootDealloc()
                  !isa.has_sidetable_rc))
     {
         assert(!sidetable_present());
+        //快速释放
         free(this);
     } 
     else {
+        //---一般执行这里
         object_dispose((id)this);
     }
 }

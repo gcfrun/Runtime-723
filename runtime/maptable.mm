@@ -43,6 +43,7 @@
     #define INLINE inline
 #endif
 
+//MapPair key和value
 typedef struct _MapPair {
     const void	*key;
     const void	*value;
@@ -171,6 +172,7 @@ static INLINE void *_NXMapMember(NXMapTable *table, const void *key, void **valu
 	return (void *)pair->key;
     } else {
 	unsigned	index2 = index;
+    //while循环遍历查询MapPair中的key是否和查询key相等，返回value
 	while ((index2 = nextIndex(table, index2)) != index) {
 	    pair = pairs + index2;
 	    if (pair->key == NX_MAPNOTAKEY) return NX_MAPNOTAKEY;
@@ -189,6 +191,7 @@ void *NXMapMember(NXMapTable *table, const void *key, void **value) {
 
 void *NXMapGet(NXMapTable *table, const void *key) {
     void	*value;
+    //返回key对应的value
     return (_NXMapMember(table, key, &value) != NX_MAPNOTAKEY) ? value : NULL;
 }
 

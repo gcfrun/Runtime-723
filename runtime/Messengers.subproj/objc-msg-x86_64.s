@@ -417,7 +417,7 @@ LExit$0:
 // On exit: imp in %r11, eq/ne set for forwarding
 //
 /////////////////////////////////////////////////////////////////////
-
+//汇编宏定义 MethodTableLookup
 .macro MethodTableLookup
 
 	push	%rbp
@@ -451,6 +451,7 @@ LExit$0:
 	movq	%a3, %a2
 .endif
 	movq	%r10, %a3
+	//调用runtime中的__class_lookupMethodAndLoadCache3
 	call	__class_lookupMethodAndLoadCache3
 
 	// IMP is now in %rax
@@ -690,6 +691,7 @@ LCacheMiss:
 	END_ENTRY _cache_getImp
 
 
+//方法找找
 /********************************************************************
  *
  * id objc_msgSend(id self, SEL	_cmd,...);
@@ -715,9 +717,12 @@ _objc_debug_taggedpointer_ext_classes:
 	UNWIND _objc_msgSend, NoFrame
 	MESSENGER_START
 
+	//1.判断空处理
 	NilTest	NORMAL
 
+	//2.获取isa
 	GetIsaFast NORMAL		// r10 = self->isa
+	//3.缓存中查找
 	CacheLookup NORMAL, CALL	// calls IMP on success
 
 	NilTestReturnZero NORMAL
@@ -728,6 +733,7 @@ _objc_debug_taggedpointer_ext_classes:
 LCacheMiss:
 	// isa still in r10
 	MESSENGER_END_SLOW
+	//4.查找方法
 	jmp	__objc_msgSend_uncached
 
 	END_ENTRY _objc_msgSend
@@ -1139,6 +1145,7 @@ LCacheMiss:
 	// Out-of-band r10 is the searched class
 
 	// r10 is already the class to search
+	//方法列表中查找
 	MethodTableLookup NORMAL	// r11 = IMP
 	jmp	*%r11			// goto *imp
 
@@ -1183,7 +1190,8 @@ LCacheMiss:
 
 	END_ENTRY __objc_msgLookup_stret_uncached
 
-	
+
+//消息转发
 /********************************************************************
 *
 * id _objc_msgForward(id self, SEL _cmd,...);
@@ -1206,14 +1214,14 @@ LCacheMiss:
 	MESSENGER_END_SLOW
 	
 	jne	__objc_msgForward_stret
+	//1.跳转到__objc_msgForward
 	jmp	__objc_msgForward
 
 	END_ENTRY __objc_msgForward_impcache
-	
-	
+
 	ENTRY __objc_msgForward
 	// Non-stret version
-
+	//2.执行__objc_forward_handler
 	movq	__objc_forward_handler(%rip), %r11
 	jmp	*%r11
 

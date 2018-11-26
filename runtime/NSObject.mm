@@ -331,12 +331,14 @@ storeWeak(id *location, objc_object *newObj)
     // Order by lock address to prevent lock ordering problems. 
     // Retry if the old value changes underneath us.
  retry:
+    //若果有旧对象，则获取其对应弱引用SideTable-->oldTable
     if (haveOld) {
         oldObj = *location;
         oldTable = &SideTables()[oldObj];
     } else {
         oldTable = nil;
     }
+    //若果有新对象，则获取其对应弱引用SideTable-->newTable
     if (haveNew) {
         newTable = &SideTables()[newObj];
     } else {
@@ -374,12 +376,14 @@ storeWeak(id *location, objc_object *newObj)
     }
 
     // Clean up old value, if any.
+    //---把旧对象的弱引用移除掉
     if (haveOld) {
         weak_unregister_no_lock(&oldTable->weak_table, oldObj, location);
     }
 
     // Assign new value, if any.
     if (haveNew) {
+        //---给新的对象添加弱引用
         newObj = (objc_object *)
             weak_register_no_lock(&newTable->weak_table, (id)newObj, location, 
                                   crashIfDeallocating);
@@ -454,6 +458,7 @@ objc_storeWeakOrNil(id *location, id newObj)
  * @param location Address of __weak ptr. 
  * @param newObj Object ptr. 
  */
+//初始化弱引用：被弱引用的对象newObj，弱引用指针location
 id
 objc_initWeak(id *location, id newObj)
 {
@@ -461,7 +466,7 @@ objc_initWeak(id *location, id newObj)
         *location = nil;
         return nil;
     }
-
+    //---
     return storeWeak<DontHaveOld, DoHaveNew, DoCrashIfDeallocating>
         (location, (objc_object*)newObj);
 }
@@ -1279,9 +1284,11 @@ objc_object::clearDeallocating_slow()
 {
     assert(isa.nonpointer  &&  (isa.weakly_referenced || isa.has_sidetable_rc));
 
+    //根据this拿到对用的SideTable
     SideTable& table = SideTables()[this];
     table.lock();
     if (isa.weakly_referenced) {
+        //---删除自己的所有弱引用
         weak_clear_no_lock(&table.weak_table, (id)this);
     }
     if (isa.has_sidetable_rc) {
@@ -1759,8 +1766,10 @@ _objc_rootAllocWithZone(Class cls, malloc_zone_t *zone)
     id obj;
 
 #if __OBJC2__
+    //OC 2.0中已经忽略了参数zone
     // allocWithZone under __OBJC2__ ignores the zone parameter
     (void)zone;
+    //---
     obj = class_createInstance(cls, 0);
 #else
     if (!zone) {
@@ -1784,10 +1793,12 @@ callAlloc(Class cls, bool checkNil, bool allocWithZone=false)
     if (slowpath(checkNil && !cls)) return nil;
 
 #if __OBJC2__
+    //没有alloc/allocWithZone方法的实现
     if (fastpath(!cls->ISA()->hasCustomAWZ())) {
         // No alloc/allocWithZone implementation. Go straight to the allocator.
         // fixme store hasCustomAWZ in the non-meta class and 
         // add it to canAllocFast's summary
+        //---这里返回始终为false
         if (fastpath(cls->canAllocFast())) {
             // No ctors, raw isa, etc. Go straight to the metal.
             bool dtor = cls->hasCxxDtor();
@@ -1798,6 +1809,8 @@ callAlloc(Class cls, bool checkNil, bool allocWithZone=false)
         }
         else {
             // Has ctor or raw isa or something. Use the slower path.
+            //第一种情况
+            //---初始化实例
             id obj = class_createInstance(cls, 0);
             if (slowpath(!obj)) return callBadAllocHandler(cls);
             return obj;
@@ -1806,6 +1819,8 @@ callAlloc(Class cls, bool checkNil, bool allocWithZone=false)
 #endif
 
     // No shortcuts available.
+    //第二种情况
+    //---
     if (allocWithZone) return [cls allocWithZone:nil];
     return [cls alloc];
 }
@@ -1838,7 +1853,7 @@ void
 _objc_rootDealloc(id obj)
 {
     assert(obj);
-
+    //---
     obj->rootDealloc();
 }
 
@@ -2366,7 +2381,9 @@ void arr_init(void)
 
 
 // Replaced by NSZombies
+//释放对象
 - (void)dealloc {
+    //---
     _objc_rootDealloc(self);
 }
 
